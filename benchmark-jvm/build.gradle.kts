@@ -1,4 +1,5 @@
 import kotlinx.benchmark.gradle.benchmark
+import org.gradle.jvm.toolchain.JavaLanguageVersion
 import org.jetbrains.kotlin.allopen.gradle.AllOpenExtension
 
 plugins {
@@ -34,6 +35,11 @@ kotlin {
                 implementation(project(":implementation"))
                 implementation(project(":benchmark-fixtures"))
                 implementation(project(":java-typealiases"))
+                implementation(project(":exporters-otlp"))
+                implementation(libs.ktor.client.content.negotiation)
+                implementation(libs.ktor.client.encoding)
+                implementation(libs.ktor.client.okhttp)
+                implementation(libs.kotlinx.coroutines)
             }
         }
     }
@@ -55,4 +61,28 @@ benchmark {
             iterationTimeUnit = "s"
         }
     }
+}
+
+tasks.register<JavaExec>("runOtlpMemoryExperiment") {
+    dependsOn("jvmMainClasses")
+    val compilation = kotlin.targets.named("jvm").get().compilations.named("main").get()
+    classpath(
+        compilation.output.allOutputs,
+        compilation.runtimeDependencyFiles
+    )
+    mainClass.set("io.opentelemetry.kotlin.benchmark.export.otlp.OtlpMemoryExperimentKt")
+    javaLauncher.set(javaToolchains.launcherFor { languageVersion.set(JavaLanguageVersion.of(21)) })
+    standardInput = System.`in`
+}
+
+tasks.register<JavaExec>("runOtlpMemoryStub") {
+    dependsOn("jvmMainClasses")
+    val compilation = kotlin.targets.named("jvm").get().compilations.named("main").get()
+    classpath(
+        compilation.output.allOutputs,
+        compilation.runtimeDependencyFiles
+    )
+    mainClass.set("io.opentelemetry.kotlin.benchmark.export.otlp.DeterministicOtlpStub")
+    javaLauncher.set(javaToolchains.launcherFor { languageVersion.set(JavaLanguageVersion.of(21)) })
+    standardInput = System.`in`
 }

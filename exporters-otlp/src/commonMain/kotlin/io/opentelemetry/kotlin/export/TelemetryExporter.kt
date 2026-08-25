@@ -13,14 +13,15 @@ import kotlin.random.Random
 
 private const val SHUTDOWN_TIMEOUT_MS = 5000L
 
-internal class TelemetryExporter<T>(
+internal class TelemetryExporter<T, Prepared>(
     private val initialDelayMs: Long,
     private val maxAttemptIntervalMs: Long,
     private val maxAttempts: Int,
     private val sdkErrorHandler: SdkErrorHandler,
     coroutineContext: CoroutineContext = Dispatchers.Default,
     private val random: Random = Random.Default,
-    private val exportAction: suspend (telemetry: List<T>) -> OtlpResponse,
+    private val prepareAction: (telemetry: List<T>) -> Prepared,
+    private val exportAction: suspend (telemetry: Prepared) -> OtlpResponse,
 ) : TelemetryCloseable {
 
     private val shutdownState: MutableShutdownState = MutableShutdownState()
@@ -35,13 +36,13 @@ internal class TelemetryExporter<T>(
         shutdownState.ifActive {
             if (telemetry.isNotEmpty()) {
                 scope.launch {
-                    exportTelemetry(telemetry)
+                    exportTelemetry(prepareAction(telemetry))
                 }
             }
             Success
         }
 
-    private suspend fun exportTelemetry(telemetry: List<T>) {
+    private suspend fun exportTelemetry(telemetry: Prepared) {
         var delayMs = initialDelayMs
         repeat(maxAttempts) {
             when (val response = exportAction(telemetry)) {

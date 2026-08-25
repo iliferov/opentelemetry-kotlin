@@ -21,12 +21,8 @@ import io.opentelemetry.kotlin.export.OtlpResponse.RetryableError
 import io.opentelemetry.kotlin.export.OtlpResponse.ServerError
 import io.opentelemetry.kotlin.export.OtlpResponse.Success
 import io.opentelemetry.kotlin.export.OtlpResponse.Unknown
-import io.opentelemetry.kotlin.logging.data.LogRecordData
 import io.opentelemetry.kotlin.logging.export.deserializeLogRecordPartialSuccess
-import io.opentelemetry.kotlin.logging.export.toProtobufByteArray
-import io.opentelemetry.kotlin.tracing.data.SpanData
 import io.opentelemetry.kotlin.tracing.export.deserializeTraceRecordPartialSuccess
-import io.opentelemetry.kotlin.tracing.export.toProtobufByteArray
 import kotlinx.io.readByteArray
 import kotlin.coroutines.cancellation.CancellationException
 
@@ -39,21 +35,21 @@ internal class OtlpClient(
     private val contentType = ContentType.parse("application/x-protobuf")
     private val userAgent = "OTel-OTLP-Exporter-Kotlin/${BuildKonfig.VERSION}"
 
-    suspend fun exportLogs(telemetry: List<LogRecordData>): OtlpResponse = exportTelemetry(
+    suspend fun exportLogs(requestBody: ByteArray): OtlpResponse = exportTelemetry(
         OtlpEndpoint.Logs,
-        telemetry::toProtobufByteArray,
+        requestBody,
         ByteArray::deserializeLogRecordPartialSuccess
     )
 
-    suspend fun exportTraces(telemetry: List<SpanData>): OtlpResponse = exportTelemetry(
+    suspend fun exportTraces(requestBody: ByteArray): OtlpResponse = exportTelemetry(
         OtlpEndpoint.Traces,
-        telemetry::toProtobufByteArray,
+        requestBody,
         ByteArray::deserializeTraceRecordPartialSuccess
     )
 
     private suspend fun exportTelemetry(
         endpoint: OtlpEndpoint,
-        requestSerializer: () -> ByteArray,
+        requestBody: ByteArray,
         parsePartialSuccess: (body: ByteArray) -> OtlpPartialSuccess?,
     ): OtlpResponse {
         return try {
@@ -62,7 +58,7 @@ internal class OtlpClient(
                 compress("gzip")
                 contentType(contentType)
                 header(HttpHeaders.UserAgent, userAgent)
-                setBody(requestSerializer())
+                setBody(requestBody)
             }
             // A 200 can still be a partial success and error responses can carry an error message,
             // so the body is always parsed rather than relying on the status code alone (see #558).

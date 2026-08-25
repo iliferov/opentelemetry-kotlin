@@ -175,7 +175,7 @@ internal class OtlpClientTest {
     @Test
     fun testExportLogNetworkFailureDoesNotThrow() = runTest {
         serverThrows = true
-        val response = client.exportLogs(logRecords)
+        val response = exportLogs(logRecords)
         assertIs<OtlpResponse.Unknown>(response)
         assertEquals(1, errorHandler.userCodeErrors.size)
         assertEquals("OTLP export failed", errorHandler.userCodeErrors.single().message)
@@ -184,7 +184,7 @@ internal class OtlpClientTest {
     @Test
     fun testExportTraceNetworkFailureDoesNotThrow() = runTest {
         serverThrows = true
-        val response = client.exportTraces(spans)
+        val response = exportTraces(spans)
         assertIs<OtlpResponse.Unknown>(response)
         assertEquals(1, errorHandler.userCodeErrors.size)
         assertEquals("OTLP export failed", errorHandler.userCodeErrors.single().message)
@@ -193,7 +193,7 @@ internal class OtlpClientTest {
     @Test
     fun testExportLogsSetsUserAgentHeader() = runTest {
         mockResponseStatus = HttpStatusCode.OK
-        client.exportLogs(logRecords)
+        exportLogs(logRecords)
 
         val request = server.requestHistory.single()
         val headers = request.headers.toMap().mapValues { it.value.joinToString() }
@@ -204,7 +204,7 @@ internal class OtlpClientTest {
     @Test
     fun testExportTracesSetsUserAgentHeader() = runTest {
         mockResponseStatus = HttpStatusCode.OK
-        client.exportTraces(spans)
+        exportTraces(spans)
 
         val request = server.requestHistory.single()
         val headers = request.headers.toMap().mapValues { it.value.joinToString() }
@@ -215,7 +215,7 @@ internal class OtlpClientTest {
     @Test
     fun testExportLogRetryableError() = runTest {
         mockResponseStatus = HttpStatusCode.TooManyRequests
-        val response = client.exportLogs(logRecords)
+        val response = exportLogs(logRecords)
         assertIs<OtlpResponse.RetryableError>(response)
         assertEquals(429, response.statusCode)
         assertNull(response.retryAfterMs)
@@ -224,7 +224,7 @@ internal class OtlpClientTest {
     @Test
     fun testExportTraceRetryableError() = runTest {
         mockResponseStatus = HttpStatusCode.TooManyRequests
-        val response = client.exportTraces(spans)
+        val response = exportTraces(spans)
         assertIs<OtlpResponse.RetryableError>(response)
         assertEquals(429, response.statusCode)
         assertNull(response.retryAfterMs)
@@ -234,7 +234,7 @@ internal class OtlpClientTest {
     fun testExportLogRetryableErrorHonoursRetryAfter() = runTest {
         mockResponseStatus = HttpStatusCode.TooManyRequests
         mockResponseHeaders = headersOf(HttpHeaders.RetryAfter, "5")
-        val response = client.exportLogs(logRecords)
+        val response = exportLogs(logRecords)
         assertIs<OtlpResponse.RetryableError>(response)
         assertEquals(5000L, response.retryAfterMs)
     }
@@ -243,7 +243,7 @@ internal class OtlpClientTest {
     fun testExportTraceRetryableErrorHonoursRetryAfter() = runTest {
         mockResponseStatus = HttpStatusCode.ServiceUnavailable
         mockResponseHeaders = headersOf(HttpHeaders.RetryAfter, "12")
-        val response = client.exportTraces(spans)
+        val response = exportTraces(spans)
         assertIs<OtlpResponse.RetryableError>(response)
         assertEquals(12_000L, response.retryAfterMs)
     }
@@ -252,7 +252,7 @@ internal class OtlpClientTest {
     fun testExportLog4xxDeserialization() = runTest {
         mockResponseStatus = HttpStatusCode.BadRequest
         mockResponseBody = logResponseBody(rejected = 0L, msg = "bad request")
-        val response = client.exportLogs(logRecords)
+        val response = exportLogs(logRecords)
         assertIs<OtlpResponse.ClientError>(response)
         assertEquals("bad request", response.errorMessage)
     }
@@ -261,7 +261,7 @@ internal class OtlpClientTest {
     fun testExportLog5xxDeserialization() = runTest {
         mockResponseStatus = HttpStatusCode.InternalServerError
         mockResponseBody = logResponseBody(rejected = 0L, msg = "internal error")
-        val response = client.exportLogs(logRecords)
+        val response = exportLogs(logRecords)
         assertIs<OtlpResponse.ServerError>(response)
         assertEquals("internal error", response.errorMessage)
     }
@@ -270,7 +270,7 @@ internal class OtlpClientTest {
     fun testExportTrace4xxDeserialization() = runTest {
         mockResponseStatus = HttpStatusCode.BadRequest
         mockResponseBody = traceResponseBody(rejected = 0L, msg = "bad request")
-        val response = client.exportTraces(spans)
+        val response = exportTraces(spans)
         assertIs<OtlpResponse.ClientError>(response)
         assertEquals("bad request", response.errorMessage)
     }
@@ -279,7 +279,7 @@ internal class OtlpClientTest {
     fun testExportTrace5xxDeserialization() = runTest {
         mockResponseStatus = HttpStatusCode.InternalServerError
         mockResponseBody = traceResponseBody(rejected = 0L, msg = "internal error")
-        val response = client.exportTraces(spans)
+        val response = exportTraces(spans)
         assertIs<OtlpResponse.ServerError>(response)
         assertEquals("internal error", response.errorMessage)
     }
@@ -288,7 +288,7 @@ internal class OtlpClientTest {
     fun testExportLogPartialSuccess() = runTest {
         mockResponseStatus = HttpStatusCode.OK
         mockResponseBody = logResponseBody(rejected = 2L, msg = "2 log records rejected")
-        val response = client.exportLogs(logRecords)
+        val response = exportLogs(logRecords)
         assertFalse(response is OtlpResponse.Success)
     }
 
@@ -296,7 +296,7 @@ internal class OtlpClientTest {
     fun testExportTracePartialSuccess() = runTest {
         mockResponseStatus = HttpStatusCode.OK
         mockResponseBody = traceResponseBody(rejected = 3L, msg = "3 spans rejected")
-        val response = client.exportTraces(spans)
+        val response = exportTraces(spans)
         assertFalse(response is OtlpResponse.Success)
     }
 
@@ -304,14 +304,14 @@ internal class OtlpClientTest {
     fun testExportLog200EmptyBodyIsSuccess() = runTest {
         mockResponseStatus = HttpStatusCode.OK
         mockResponseBody = ByteArray(0)
-        assertEquals(OtlpResponse.Success, client.exportLogs(logRecords))
+        assertEquals(OtlpResponse.Success, exportLogs(logRecords))
     }
 
     @Test
     fun testExportLogMalformedErrorBody() = runTest {
         mockResponseStatus = HttpStatusCode.BadRequest
         mockResponseBody = byteArrayOf(0xFF.toByte(), 0xFE.toByte(), 0x00, 0x42)
-        val response = client.exportLogs(logRecords)
+        val response = exportLogs(logRecords)
         assertEquals(400, response.statusCode)
     }
 
@@ -319,7 +319,7 @@ internal class OtlpClientTest {
     fun testExportTraceMalformedErrorBody() = runTest {
         mockResponseStatus = HttpStatusCode.BadRequest
         mockResponseBody = byteArrayOf(0xFF.toByte(), 0xFE.toByte(), 0x00, 0x42)
-        val response = client.exportTraces(spans)
+        val response = exportTraces(spans)
         assertEquals(400, response.statusCode)
     }
 
@@ -343,7 +343,7 @@ internal class OtlpClientTest {
             expectedResponse,
             OtlpEndpoint.Logs
         ) {
-            client.exportLogs(telemetry)
+            exportLogs(telemetry)
         } ?: return
         assertContentEquals(telemetry.toProtobufByteArray(), bytes)
     }
@@ -358,7 +358,7 @@ internal class OtlpClientTest {
             expectedResponse,
             OtlpEndpoint.Traces
         ) {
-            client.exportTraces(telemetry)
+            exportTraces(telemetry)
         } ?: return
         assertContentEquals(telemetry.toProtobufByteArray(), bytes)
     }
@@ -390,6 +390,12 @@ internal class OtlpClientTest {
         val bytes = request.body.toByteReadPacket().readByteArray()
         return bytes
     }
+
+    private suspend fun exportLogs(telemetry: List<LogRecordData>): OtlpResponse =
+        client.exportLogs(telemetry.toProtobufByteArray())
+
+    private suspend fun exportTraces(telemetry: List<SpanData>): OtlpResponse =
+        client.exportTraces(telemetry.toProtobufByteArray())
 
     private fun useRequestTimeout() {
         val httpClient = createDefaultHttpClient(requestTimeoutMs, server)

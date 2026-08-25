@@ -15,7 +15,7 @@ import kotlin.test.assertTrue
 @OptIn(ExperimentalApi::class, ExperimentalCoroutinesApi::class)
 internal class TelemetryExporterTest {
 
-    private lateinit var exporter: TelemetryExporter<String>
+    private lateinit var exporter: TelemetryExporter<String, String>
 
     @BeforeTest
     fun setup() {
@@ -24,6 +24,7 @@ internal class TelemetryExporterTest {
             maxAttemptIntervalMs = 1000,
             maxAttempts = 3,
             sdkErrorHandler = NoopSdkErrorHandler,
+            prepareAction = { it.single() },
             exportAction = { OtlpResponse.Success },
         )
     }
@@ -54,12 +55,13 @@ internal class TelemetryExporterTest {
     @Test
     fun testClientErrorIsNotRetried() = runTest {
         var attempts = 0
-        val exporter = TelemetryExporter<String>(
+        val exporter = TelemetryExporter<String, String>(
             initialDelayMs = 100,
             maxAttemptIntervalMs = 1000,
             maxAttempts = 3,
             sdkErrorHandler = NoopSdkErrorHandler,
             coroutineContext = StandardTestDispatcher(testScheduler),
+            prepareAction = { it.single() },
         ) {
             attempts++
             OtlpResponse.ClientError(400, null)
@@ -72,12 +74,13 @@ internal class TelemetryExporterTest {
     @Test
     fun testSuccessIsNotRetried() = runTest {
         var attempts = 0
-        val exporter = TelemetryExporter<String>(
+        val exporter = TelemetryExporter<String, String>(
             initialDelayMs = 100,
             maxAttemptIntervalMs = 1000,
             maxAttempts = 3,
             sdkErrorHandler = NoopSdkErrorHandler,
             coroutineContext = StandardTestDispatcher(testScheduler),
+            prepareAction = { it.single() },
         ) {
             attempts++
             OtlpResponse.Success
@@ -93,13 +96,14 @@ internal class TelemetryExporterTest {
         val maxAttempts = 4
         val initialDelayMs = 100L
         val maxIntervalMs = 1000L
-        val exporter = TelemetryExporter<String>(
+        val exporter = TelemetryExporter<String, String>(
             initialDelayMs = initialDelayMs,
             maxAttemptIntervalMs = maxIntervalMs,
             maxAttempts = maxAttempts,
             sdkErrorHandler = NoopSdkErrorHandler,
             coroutineContext = StandardTestDispatcher(testScheduler),
             random = Random(0),
+            prepareAction = { it.single() },
         ) {
             timestamps += testScheduler.currentTime
             OtlpResponse.RetryableError(503, retryAfterMs = null, errorMessage = null)
@@ -125,13 +129,14 @@ internal class TelemetryExporterTest {
         val retryAfterMs = 5000L
         val timestamps = mutableListOf<Long>()
         var attempts = 0
-        val exporter = TelemetryExporter<String>(
+        val exporter = TelemetryExporter<String, String>(
             initialDelayMs = 100,
             maxAttemptIntervalMs = 1000,
             maxAttempts = 3,
             coroutineContext = StandardTestDispatcher(testScheduler),
             random = Random(0),
             sdkErrorHandler = NoopSdkErrorHandler,
+            prepareAction = { it.single() },
         ) {
             timestamps += testScheduler.currentTime
             if (attempts++ == 0) {
@@ -147,12 +152,45 @@ internal class TelemetryExporterTest {
         assertEquals(retryAfterMs, timestamps[1] - timestamps[0])
     }
 
+    @Test
+    fun testTelemetryIsPreparedOnceAcrossRetries() = runTest {
+        var preparations = 0
+        val attemptedTelemetry = mutableListOf<String>()
+        val exporter = TelemetryExporter<String, String>(
+            initialDelayMs = 1,
+            maxAttemptIntervalMs = 1,
+            maxAttempts = 3,
+            sdkErrorHandler = NoopSdkErrorHandler,
+            coroutineContext = StandardTestDispatcher(testScheduler),
+            random = Random(0),
+            prepareAction = {
+                preparations++
+                it.single().uppercase()
+            },
+            exportAction = {
+                attemptedTelemetry += it
+                if (attemptedTelemetry.size < 3) {
+                    OtlpResponse.RetryableError(503, retryAfterMs = null, errorMessage = null)
+                } else {
+                    OtlpResponse.Success
+                }
+            },
+        )
+
+        exporter.export(listOf("data"))
+        advanceUntilIdle()
+
+        assertEquals(1, preparations)
+        assertEquals(listOf("DATA", "DATA", "DATA"), attemptedTelemetry)
+    }
+
     fun testExportDoesNotPropagateExportActionFailure() {
-        val throwingExporter = TelemetryExporter<String>(
+        val throwingExporter = TelemetryExporter<String, String>(
             initialDelayMs = 1,
             maxAttemptIntervalMs = 1,
             maxAttempts = 1,
             sdkErrorHandler = NoopSdkErrorHandler,
+            prepareAction = { it.single() },
             exportAction = { error("network unreachable") },
         )
         // The failure occurs on a background coroutine whose scope has a CoroutineExceptionHandler,

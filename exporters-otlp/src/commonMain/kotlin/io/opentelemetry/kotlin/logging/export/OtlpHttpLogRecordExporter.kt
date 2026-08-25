@@ -19,9 +19,9 @@ internal class OtlpHttpLogRecordExporter(
         maxAttemptIntervalMs,
         maxAttempts,
         sdkErrorHandler,
-    ) {
-        otlpClient.exportLogs(it)
-    }
+        prepareAction = { it.toProtobufByteArray() },
+        exportAction = { otlpClient.exportLogs(it) },
+    )
 
     override suspend fun export(telemetry: List<LogRecordData>): OperationResultCode {
         return exporter.export(telemetry)

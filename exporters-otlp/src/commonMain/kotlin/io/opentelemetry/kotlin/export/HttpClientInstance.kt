@@ -4,6 +4,7 @@ import io.ktor.client.HttpClient
 import io.ktor.client.engine.HttpClientEngine
 import io.ktor.client.plugins.HttpTimeout
 import io.ktor.client.plugins.compression.ContentEncoding
+import io.ktor.client.plugins.compression.ContentEncodingConfig
 import io.ktor.client.plugins.contentnegotiation.ContentNegotiation
 import io.ktor.util.collections.ConcurrentMap
 
@@ -38,6 +39,7 @@ internal fun createDefaultHttpClient(
     }
     install(ContentNegotiation)
     install(ContentEncoding) {
+        mode = ContentEncodingConfig.Mode.All
         gzip()
         deflate()
     }

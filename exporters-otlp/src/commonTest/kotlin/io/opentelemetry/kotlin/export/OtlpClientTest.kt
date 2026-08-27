@@ -2,15 +2,17 @@ package io.opentelemetry.kotlin.export
 
 import io.ktor.client.engine.mock.MockEngine
 import io.ktor.client.engine.mock.respond
-import io.ktor.client.engine.mock.toByteReadPacket
+import io.ktor.client.engine.mock.toByteArray
 import io.ktor.client.plugins.HttpTimeoutConfig.Companion.INFINITE_TIMEOUT_MS
 import io.ktor.http.Headers
 import io.ktor.http.HttpHeaders
 import io.ktor.http.HttpMethod
 import io.ktor.http.HttpStatusCode
 import io.ktor.http.headersOf
+import io.ktor.util.GZipEncoder
 import io.ktor.util.toMap
 import io.ktor.utils.io.ByteReadChannel
+import io.ktor.utils.io.toByteArray
 import io.opentelemetry.kotlin.error.FakeSdkErrorHandler
 import io.opentelemetry.kotlin.error.NoopSdkErrorHandler
 import io.opentelemetry.kotlin.logging.data.FakeLogRecordData
@@ -25,7 +27,6 @@ import io.opentelemetry.proto.collector.trace.v1.ExportTracePartialSuccess
 import io.opentelemetry.proto.collector.trace.v1.ExportTraceServiceResponse
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.test.runTest
-import kotlinx.io.readByteArray
 import kotlin.test.BeforeTest
 import kotlin.test.Test
 import kotlin.test.assertContentEquals
@@ -50,6 +51,7 @@ internal class OtlpClientTest {
     private var mockResponseBody: ByteArray = ByteArray(0)
     private var serverDelayMs: Long = 0
     private var serverThrows: Boolean = false
+    private var compressedRequestBody: ByteArray = ByteArray(0)
 
     @BeforeTest
     fun setUp() {
@@ -58,6 +60,9 @@ internal class OtlpClientTest {
             if (serverThrows) {
                 error("network unreachable")
             }
+            // gzip compression is lazy and tied to the request context, so capture the body here;
+            // reading it later fails after the request completes.
+            compressedRequestBody = it.body.toByteArray()
             if (serverDelayMs > 0) {
                 delay(serverDelayMs.milliseconds)
             }
@@ -417,11 +422,13 @@ internal class OtlpClientTest {
         val contentType = checkNotNull(request.body.contentType)
         assertEquals("application/x-protobuf", contentType.toString())
 
-        val headers = request.headers.toMap().mapValues { it.value.joinToString() }
-        assertEquals("gzip,deflate", headers["Accept-Encoding"])
+        assertEquals("gzip,deflate", request.headers[HttpHeaders.AcceptEncoding])
 
-        val bytes = request.body.toByteReadPacket().readByteArray()
-        return bytes
+        assertEquals("gzip", request.body.headers[HttpHeaders.ContentEncoding])
+
+        val uncompressedBytes = GZipEncoder.decode(ByteReadChannel(compressedRequestBody))
+            .toByteArray()
+        return uncompressedBytes
     }
 
     private fun useRequestTimeout() {

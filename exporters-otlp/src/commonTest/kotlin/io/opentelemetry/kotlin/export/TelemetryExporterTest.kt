@@ -47,7 +47,7 @@ internal class TelemetryExporterTest {
     }
 
     @Test
-    fun testExportSucceedsBeforeShutdown() = runTest {
+    fun testExportSucceedsBeforeShutdown() {
         assertEquals(OperationResultCode.Success, exporter.export(listOf("data")))
     }
 
@@ -147,8 +147,7 @@ internal class TelemetryExporterTest {
         assertEquals(retryAfterMs, timestamps[1] - timestamps[0])
     }
 
-    @Test
-    fun testExportDoesNotPropagateExportActionFailure() = runTest {
+    fun testExportDoesNotPropagateExportActionFailure() {
         val throwingExporter = TelemetryExporter<String>(
             initialDelayMs = 1,
             maxAttemptIntervalMs = 1,

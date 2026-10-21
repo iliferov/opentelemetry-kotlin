@@ -20,8 +20,8 @@ import io.opentelemetry.kotlin.export.EXPORT_REQUEST_TIMEOUT_MS
 import io.opentelemetry.kotlin.export.HttpClientRegistry
 import io.opentelemetry.kotlin.export.OperationResultCode
 import io.opentelemetry.kotlin.export.OtlpClient
-import io.opentelemetry.kotlin.export.createDefaultHttpClient
 import io.opentelemetry.kotlin.export.createHttpEngine
+import io.opentelemetry.kotlin.export.createTestHttpClient
 import io.opentelemetry.kotlin.export.testMockEngine
 import io.opentelemetry.kotlin.export.withShutdown
 import io.opentelemetry.kotlin.init.TraceExportConfigDsl
@@ -73,7 +73,7 @@ internal class OtlpHttpSpanExporterTest {
                 status = mockResponseStatus
             )
         }
-        val httpClient = createDefaultHttpClient(engine = server, requestTimeoutMs = INFINITE_TIMEOUT_MS)
+        val httpClient = createTestHttpClient(INFINITE_TIMEOUT_MS, server, dispatcher)
         client = OtlpClient(baseUrl, httpClient = httpClient, sdkErrorHandler = NoopSdkErrorHandler)
     }
 
